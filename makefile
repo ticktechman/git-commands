@@ -12,8 +12,8 @@ GIT_TOOLS := git-index-show
 
 all: $(GIT_TOOLS)
 
-git-index-show: commands/git-index-show.cc
-	g++ -o $@ $^
+git-index-show: commands/git-index-show.c
+	gcc -o $@ $^
 
 clean:
 	rm -f $(GIT_TOOLS)
