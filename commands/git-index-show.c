@@ -100,10 +100,14 @@ void print_ce(struct ondisk_cache_entry* e) {
   uint32_t sec2 = ntohl(e->ctime.sec);
   uint32_t nsec1 = ntohl(e->mtime.nsec);
   uint32_t nsec2 = ntohl(e->ctime.nsec);
-  printf(
-      "%o %d %d %04x %u.%u %u.%u %8d %02x%02x%02x%02x%02x%02x%02x%02x %8d %s\n",
-      mode, uid, gid, flags, sec1, nsec1, sec2, nsec2, ntohl(e->ino), d[0],
-      d[1], d[2], d[3], d[4], d[5], d[6], d[7], ntohl(e->size), name);
+  char oid[41];
+  sprintf(oid,
+          "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
+          "02x%02x%02x%02x",
+          d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10],
+          d[11], d[12], d[13], d[14], d[15], d[16], d[17], d[18], d[19]);
+  printf("%o %d %d %04x %u.%u %u.%u %8d %s %8d %s\n", mode, uid, gid, flags,
+         sec1, nsec1, sec2, nsec2, ntohl(e->ino), oid, ntohl(e->size), name);
 }
 
 int main(int argc, char* argv[]) {
@@ -130,13 +134,18 @@ int main(int argc, char* argv[]) {
   }
 
   struct cache_header* hdr = (struct cache_header*)map;
-  printf("signature: 0x%08x  version: %d   entries: %d\n",
-         ntohl(hdr->hdr_signature), ntohl(hdr->hdr_version),
+  printf("#header (1-signature, 2-version, 3-entries)\n");
+  printf("0x%08x %d %d\n", ntohl(hdr->hdr_signature), ntohl(hdr->hdr_version),
          ntohl(hdr->hdr_entries));
-  printf("---------------------------------\n");
+  printf("\n");
 
   map += sizeof(*hdr);
   size_t entries = ntohl(hdr->hdr_entries);
+  if (entries > 0) {
+    printf(
+        "#entries (1-mode, 2-uid, 3-gid, 4-flags, 5-ctime, 6-mtime, 7-inode, "
+        "8-oid, 9-size, 10-name)\n");
+  }
   while (map < end && entries > 0) {
     --entries;
     struct ondisk_cache_entry* ent = (struct ondisk_cache_entry*)map;
