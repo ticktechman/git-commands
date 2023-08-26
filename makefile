@@ -8,12 +8,15 @@
 ###############################################################################
 .PHONY: all build test install doc
 
-GIT_TOOLS := git-index-show
+GIT_TOOLS := git-index-cat
 
 all: $(GIT_TOOLS)
 
-git-index-show: src/git-index-show.c
+git-index-cat: src/git-index-cat.c
 	gcc -o $@ $^
+
+install: $(GIT_TOOLS)
+	sudo cp $(GIT_TOOLS) /usr/local/bin/
 
 clean:
 	rm -f $(GIT_TOOLS)

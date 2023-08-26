@@ -2,7 +2,7 @@
  *******************************************************************************
  *
  *        filename: git-index-show.c
- *     description:
+ *     description: show .git/index content(header , entries)
  *         created: 2023/08/24
  *          author: ticktechman
  *
