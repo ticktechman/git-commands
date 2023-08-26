@@ -12,7 +12,7 @@ GIT_TOOLS := git-index-show
 
 all: $(GIT_TOOLS)
 
-git-index-show: commands/git-index-show.c
+git-index-show: src/git-index-show.c
 	gcc -o $@ $^
 
 clean:

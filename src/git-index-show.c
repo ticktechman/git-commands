@@ -10,6 +10,7 @@
  */
 
 #include <arpa/inet.h>
+#include <signal.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -17,6 +18,10 @@
 #include <sys/errno.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
+
+#define loge(fmt, ...) fprintf(stderr, fmt "\n", ##__VA_ARGS__)
+#define logi(fmt, ...) fprintf(stdout, fmt "\n", ##__VA_ARGS__)
+#define log printf
 
 #define CACHE_SIGNATURE 0x44495243 /* "DIRC" */
 struct cache_header {
@@ -30,25 +35,19 @@ struct cache_time {
   uint32_t nsec;
 };
 
-#define GIT_SHA256_RAWSZ 20
-#define GIT_MAX_RAWSZ GIT_SHA256_RAWSZ
+#define GIT_SHA1_RAWSZ 20
+#define GIT_MAX_RAWSZ GIT_SHA1_RAWSZ
 #define CE_NAMEMASK (0x0fff)
 #define CE_EXTENDED (0x4000)
 
-#define align_padding_size(size, len) ((size + (len) + 8) & ~7) - (size + len)
-#define align_flex_name(STRUCT, len) \
-  ((offsetof(struct STRUCT, data) + (len) + 8) & ~7)
-#define ondisk_cache_entry_size(len) align_flex_name(ondisk_cache_entry, len)
-#define ondisk_data_size(flags, len) \
-  (GIT_MAX_RAWSZ + ((flags & CE_EXTENDED) ? 2 : 1) * sizeof(uint16_t) + len)
-#define ondisk_data_size_max(len) (ondisk_data_size(CE_EXTENDED, len))
-
+#define ondisk_ce_flag_size(flags) \
+  ((flags & CE_EXTENDED ? 2 : 1) * sizeof(uint16_t))
 #define ondisk_ce_flags_ptr(ce) ((uint16_t*)(ce->data + GIT_MAX_RAWSZ))
 #define ondisk_ce_flags(ce) (*(ondisk_ce_flags_ptr(ce)))
-#define ondisk_ce_name(ce) \
-  ((char*)(ce->data + GIT_MAX_RAWSZ + sizeof(uint16_t)))
+#define ondisk_ce_name(ce, flags) \
+  ((char*)(ce->data + GIT_MAX_RAWSZ + ondisk_ce_flag_size(flags)))
 
-#define FLEX_ARRAY /* empty */
+// network byte order(big endian)
 struct ondisk_cache_entry {
   struct cache_time ctime;
   struct cache_time mtime;
@@ -64,61 +63,50 @@ struct ondisk_cache_entry {
    * if (flags & CE_EXTENDED)
    *	uint16_t flags2;
    */
-  unsigned char data[GIT_MAX_RAWSZ + 1 * sizeof(uint16_t)];
+  unsigned char data[GIT_MAX_RAWSZ + 2 * sizeof(uint16_t)];
   char name[0];
 };
-
-static inline uint16_t get_be16(const void* ptr) {
-  const unsigned char* p = ptr;
-  return (uint16_t)p[0] << 8 | (uint16_t)p[1] << 0;
-}
-
-static inline uint32_t get_be32(const void* ptr) {
-  const unsigned char* p = ptr;
-  return (uint32_t)p[0] << 24 | (uint32_t)p[1] << 16 | (uint32_t)p[2] << 8 |
-         (uint32_t)p[3] << 0;
-}
 
 int ce_size(struct ondisk_cache_entry* e) {
   uint16_t flags = ntohs(ondisk_ce_flags(e));
   int len = flags & CE_NAMEMASK;
-  char* name = ondisk_ce_name(e);
-  len = offsetof(struct ondisk_cache_entry, data) + GIT_MAX_RAWSZ +
-        sizeof(uint16_t) + len;
+  char* name = ondisk_ce_name(e, flags);
+  len = name - (char*)e + len;
   len = (len + 8) & ~7;
   return len;
 }
 
 void print_ce(struct ondisk_cache_entry* e) {
-  const unsigned char* name = e->data + 20 + sizeof(uint16_t);
+  uint16_t flags = ntohs(ondisk_ce_flags(e));
+  const char* name = ondisk_ce_name(e, flags);
   const unsigned char* d = e->data;
   uint32_t mode = ntohl(e->mode);
   uint32_t uid = ntohl(e->uid);
   uint32_t gid = ntohl(e->gid);
-  uint16_t flags = ntohs(ondisk_ce_flags(e));
-  uint32_t sec1 = ntohl(e->mtime.sec);
-  uint32_t sec2 = ntohl(e->ctime.sec);
-  uint32_t nsec1 = ntohl(e->mtime.nsec);
-  uint32_t nsec2 = ntohl(e->ctime.nsec);
-  char oid[41];
-  sprintf(oid,
-          "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%"
-          "02x%02x%02x%02x",
-          d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10],
-          d[11], d[12], d[13], d[14], d[15], d[16], d[17], d[18], d[19]);
-  printf("%o %d %d %04x %u.%09u %u.%09u %8d %s %8d %s\n", mode, uid, gid, flags,
-         sec1, nsec1, sec2, nsec2, ntohl(e->ino), oid, ntohl(e->size), name);
+  uint32_t sec1 = ntohl(e->ctime.sec);
+  uint32_t sec2 = ntohl(e->mtime.sec);
+  uint32_t nsec1 = ntohl(e->ctime.nsec);
+  uint32_t nsec2 = ntohl(e->mtime.nsec);
+  char oid[GIT_MAX_RAWSZ * 2 + 1];
+  char* ptr = oid;
+  for (int i = 0; i < GIT_MAX_RAWSZ; i++) {
+    sprintf(ptr, "%02x", d[i]);
+    ptr += 2;
+  }
+  log("%o %d %d %04x %u.%09u %u.%09u %8d %s %8d %s\n", mode, uid, gid, flags,
+      sec1, nsec1, sec2, nsec2, ntohl(e->ino), oid, ntohl(e->size), name);
 }
 
 int main(int argc, char* argv[]) {
   if (argc != 2) {
-    fprintf(stderr, "usage: %s <index-file>\n", argv[0]);
+    loge("usage: %s <index-file>", argv[0]);
     return EINVAL;
   }
 
+  // open file and map it
   FILE* fp = fopen(argv[1], "rb");
   if (!fp) {
-    fprintf(stderr, "fail to open: %s\n", argv[1]);
+    loge("fail to open: %s", argv[1]);
     return ENFILE;
   }
 
@@ -129,22 +117,30 @@ int main(int argc, char* argv[]) {
   char* end = map + st.st_size;
   fclose(fp);
   if (!map) {
-    fprintf(stderr, "fail to map: %s\n", argv[1]);
+    loge("fail to map: %s", argv[1]);
     return ENOMEM;
   }
 
+  // show header
   struct cache_header* hdr = (struct cache_header*)map;
-  printf("#header (1-signature, 2-version, 3-entries)\n");
-  printf("0x%08x %d %d\n", ntohl(hdr->hdr_signature), ntohl(hdr->hdr_version),
-         ntohl(hdr->hdr_entries));
-  printf("\n");
+  uint32_t signature = ntohl(hdr->hdr_signature);
+  if (signature != CACHE_SIGNATURE) {
+    loge("invalid signature(%08x) in file", signature);
+    goto out_gc;
+  }
 
+  logi("#header (1-signature, 2-version, 3-entries)");
+  logi("0x%08x %d %d", signature, ntohl(hdr->hdr_version),
+       ntohl(hdr->hdr_entries));
+  logi("");
+
+  // show entries
   map += sizeof(*hdr);
   size_t entries = ntohl(hdr->hdr_entries);
   if (entries > 0) {
-    printf(
+    logi(
         "#entries (1-mode, 2-uid, 3-gid, 4-flags, 5-ctime, 6-mtime, 7-inode, "
-        "8-oid, 9-size, 10-name)\n");
+        "8-oid, 9-size, 10-name)");
   }
   while (map < end && entries > 0) {
     --entries;
@@ -154,6 +150,7 @@ int main(int argc, char* argv[]) {
     map += sz;
   }
 
+out_gc:
   munmap(map, st.st_size);
   return 0;
 }
