@@ -14,4 +14,4 @@ git index-cat .git/index
 
 # screenshot
 
-![git-index-show](./screenshot/git-index-show.png)
+![git-index-show](./screenshot/git-index-cat.png)
