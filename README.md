@@ -17,4 +17,4 @@ git largefiles -t 10 -s 100k
 
 ![git-index-show](./screenshot/git-index-cat.png)
 
-![git-largefiles](/Users/ticktech/usr/project/github/git-commands/screenshot/git-largefiles.png)
+![git-largefiles](./screenshot/git-largefiles.png)
