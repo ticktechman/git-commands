@@ -100,7 +100,7 @@ class LargeFiles:
             self.meta[oid] = record(size)
 
         def parser(line):
-            val = re.split(r'\s+', line, 2)
+            val = re.split(r'\s+', line, 1)
             if self.meta.get(val[0]):
                 self.meta[val[0]].fn = val[1]
         cmd = 'git rev-list --objects --all'
