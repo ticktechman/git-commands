@@ -90,7 +90,7 @@ class LargeFiles:
 
         for one in ordered_oid:
             rec = self.meta[one]
-            print(one, rec.size, rec.fn)
+            print("{} {:>10d} {}".format(one,  rec.size, rec.fn))
 
 def parse_size(input_string):
     ## multipliers
