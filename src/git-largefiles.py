@@ -1,4 +1,12 @@
 #!/usr/bin/env python3
+###############################################################################
+##
+##       filename: git-largefiles.py
+##    description: find top N large files in current repo
+##        created: 2023/09/28
+##         author: ticktechman
+##
+###############################################################################
 import os
 import re
 import subprocess
@@ -149,3 +157,4 @@ def main():
 if __name__ == "__main__":
     main()
 
+###############################################################################
