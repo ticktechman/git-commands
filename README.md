@@ -9,9 +9,12 @@ Toolset of git extended commands
 make
 make install
 git index-cat .git/index
+git largefiles -t 10 -s 100k
 
 ```
 
 # screenshot
 
 ![git-index-show](./screenshot/git-index-cat.png)
+
+![git-largefiles](/Users/ticktech/usr/project/github/git-commands/screenshot/git-largefiles.png)
