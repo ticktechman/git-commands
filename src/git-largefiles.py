@@ -42,6 +42,15 @@ def git_command(command, line_parser):
     except Exception as e:
         print("An exception occurred:", e)
 
+def git_dir():
+    cmd = "git rev-parse --show-toplevel"
+    gitdir = ""
+    def set_dir(line):
+        nonlocal gitdir
+        gitdir = line
+    git_command(cmd, set_dir)
+    return gitdir
+
 class record:
     def __init__(self, size=0, fn=""):
         self.size = size
@@ -71,7 +80,8 @@ class LargeFiles:
     def _list(self):
         if self.err:
             return self
-        cmd = "git verify-pack -v .git/objects/pack/*.idx | grep blob | sort -k 3 -nr > {}".format(self.fn_list)
+        gitdir = git_dir()
+        cmd = "git verify-pack -v {}/.git/objects/pack/*.idx | grep blob | sort -k 3 -nr > {}".format(gitdir, self.fn_list)
         self.err = os.system(cmd)
         return self
     def _filter(self):
